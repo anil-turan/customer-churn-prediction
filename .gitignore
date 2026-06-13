@@ -1,0 +1,35 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+.env
+
+# Data — never commit raw/processed data
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Saved models — too large for git; use MLflow or DVC
+saved_models/*.pkl
+saved_models/*.json
+!saved_models/.gitkeep
+
+# MLflow
+mlruns/
+mlartifacts/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Reports
+reports/figures/*.png
+reports/figures/*.pdf
+!reports/figures/.gitkeep
+
+# macOS
+.DS_Store
