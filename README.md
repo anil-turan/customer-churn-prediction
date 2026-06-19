@@ -1,11 +1,12 @@
 # Customer Churn Prediction
 
-End-to-end machine learning pipeline that predicts which telecom customers are likely to cancel their subscription.
+End-to-end machine learning pipeline that predicts which telecom customers are likely to cancel their subscription — from raw data to a deployed REST API.
 
-**Dataset:** IBM Telco Customer Churn — 7,043 customers, 21 features  
-**Best model:** LightGBM · AUC-PR 0.636 · AUC-ROC 0.829  
+**Primary dataset:** IBM Telco Customer Churn — 7,043 customers, 21 features  
+**Best model:** LightGBM + Optuna · AUC-PR **0.668** · AUC-ROC **0.847**  
+**Generalisation:** same pipeline applied to a second domain (E-Commerce) · AUC-PR **0.996**  
 **Business impact:** cost-optimal threshold reduces misclassification cost by **43%** vs default (£37k → £65k on test set)  
-**Stack:** Python 3.11 · scikit-learn · LightGBM · XGBoost · SHAP · MLflow · FastAPI
+**Stack:** Python 3.11 · scikit-learn · LightGBM · XGBoost · Optuna · SHAP · MLflow · FastAPI
 
 ---
 
@@ -14,38 +15,55 @@ End-to-end machine learning pipeline that predicts which telecom customers are l
 ```
 customer-churn-prediction/
 ├── src/
-│   ├── features/pipeline.py     # feature engineering functions
+│   ├── features/pipeline.py     # canonical feature engineering (used by notebooks + API)
 │   ├── models/train.py          # pipeline builder + MLflow logging
 │   ├── evaluation/metrics.py    # ROC/PR/SHAP plot helpers
 │   └── serving/app.py           # FastAPI prediction endpoint
 ├── notebooks/
 │   ├── 01_eda.ipynb             # exploratory data analysis
 │   ├── 02_feature_engineering.ipynb
-│   ├── 03_model_training.ipynb  # CV, SHAP, MLflow, model export
-│   └── 04_cost_sensitive.ipynb  # business cost matrix, threshold optimisation
+│   ├── 03_model_training.ipynb  # CV, SHAP, calibration, MLflow, model export
+│   ├── 04_cost_sensitive.ipynb  # business cost matrix, threshold optimisation
+│   ├── 05_optuna_tuning.ipynb   # Bayesian HPO with Optuna TPE (50 trials, AUC-PR +5.1%)
+│   └── 06_generalization.ipynb  # same pipeline on E-Commerce dataset (AUC-PR 0.996)
 ├── tests/
-│   └── test_pipeline.py         # leak test + dummy baseline test
+│   └── test_pipeline.py         # data-leakage test + dummy baseline test
 ├── data/
 │   ├── raw/                     # original CSV (not committed)
 │   └── processed/               # train/test splits (not committed)
 ├── saved_models/                # trained pipeline pickle
 ├── reports/figures/             # all EDA and evaluation plots
 ├── Dockerfile
-├── pyproject.toml
-└── .github/workflows/ci.yml
+└── pyproject.toml
 ```
 
 ---
 
 ## Results
 
+### IBM Telco — Model Comparison
+
 | Model | AUC-PR | AUC-ROC | Overfit gap |
 |-------|--------|---------|-------------|
 | Dummy baseline | 0.265 | 0.500 | — |
 | XGBoost | 0.631 | 0.826 | 0.04 |
-| **LightGBM** | **0.639** | **0.833** | 0.03 |
+| LightGBM (default) | 0.636 | 0.830 | 0.03 |
+| **LightGBM + Optuna** | **0.668** | **0.847** | 0.03 |
 
 > AUC-PR is the primary metric because the dataset is imbalanced (26.5% churn rate). Accuracy would be misleading here.
+
+Optuna ran 50 TPE trials optimising 5-fold CV AUC-PR. The most impactful hyperparameter was `learning_rate`.
+
+### Generalisation — E-Commerce Dataset
+
+The same sklearn Pipeline (preprocessing + LightGBM) was applied to a second domain with no structural changes — only column names and domain-specific engineered features differ.
+
+| Dataset | Domain | Customers | Churn rate | AUC-PR | AUC-ROC |
+|---------|--------|-----------|------------|--------|---------|
+| IBM Telco | Telecom | 7,043 | 26.5% | 0.668 | 0.847 |
+| E-Commerce | Online retail | 5,630 | 16.8% | **0.996** | **0.999** |
+
+Top SHAP features on E-Commerce: `Tenure`, `Complain`, `NumberOfAddress`, `MaritalStatus_Single`, `WarehouseToHome`.
 
 **Test set (LightGBM, threshold = 0.5):**
 - Correctly identified 266 out of 374 churners (71% recall)
@@ -207,4 +225,4 @@ Interactive API docs available at `http://localhost:8000/docs` after starting th
 - **Threshold optimisation:** decision boundary set by minimising total business cost, not F1
 - **Explainability:** SHAP `TreeExplainer` provides both global feature importance and per-customer waterfall explanations
 - **Experiment tracking:** all runs logged to MLflow (metrics, params, model artifacts, figures)
-- **CI:** GitHub Actions runs `ruff`, `black`, and `pytest` on every push to `main`
+- **Code quality:** `ruff` + `black` linting enforced via `pyproject.toml`; `pytest` with coverage via `pytest-cov`

@@ -1,10 +1,11 @@
 import pickle
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+
+from src.features.pipeline import add_derived_features
 
 # Resolve model path relative to this file so uvicorn can be launched
 # from any working directory without breaking the pickle load.
@@ -14,30 +15,6 @@ app = FastAPI(title="Customer Churn Prediction API", version="1.0.0")
 
 with open(MODEL_PATH, "rb") as f:
     pipeline = pickle.load(f)
-
-SERVICE_COLS = [
-    "PhoneService", "MultipleLines", "InternetService",
-    "OnlineSecurity", "OnlineBackup", "DeviceProtection",
-    "TechSupport", "StreamingTV", "StreamingMovies",
-]
-
-
-def add_derived_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Mirror of the same function used in feature engineering notebook."""
-    df = df.copy()
-    df["tenure_group"] = pd.cut(
-        df["tenure"],
-        bins=[0, 12, 36, np.inf],
-        labels=["new", "mid", "long"],
-    ).astype(str)
-    available = [c for c in SERVICE_COLS if c in df.columns]
-    df["total_services"] = (df[available] == "Yes").sum(axis=1)
-    df["charge_per_service"] = df["MonthlyCharges"] / (df["total_services"] + 1)
-    df["has_security"] = (
-        (df["OnlineSecurity"] == "Yes") | (df["TechSupport"] == "Yes")
-    ).astype(int)
-    df["is_long_contract"] = (df["Contract"] != "Month-to-month").astype(int)
-    return df
 
 
 class CustomerFeatures(BaseModel):
