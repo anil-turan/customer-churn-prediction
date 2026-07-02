@@ -1,5 +1,12 @@
 # Customer Churn Prediction
 
+[![Python](https://img.shields.io/badge/python-3.11-blue)](https://www.python.org/)
+[![scikit-learn](https://img.shields.io/badge/scikit--learn-1.4-F7931E)](https://scikit-learn.org/)
+[![LightGBM](https://img.shields.io/badge/LightGBM-4.3-green)](https://lightgbm.readthedocs.io/)
+[![XGBoost](https://img.shields.io/badge/XGBoost-2.0-337AB7)](https://xgboost.readthedocs.io/)
+[![MLflow](https://img.shields.io/badge/MLflow-2.13-0194E2)](https://mlflow.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688)](https://fastapi.tiangolo.com/)
+
 End-to-end machine learning pipeline that predicts which telecom customers are likely to cancel their subscription — from raw data to a deployed REST API.
 
 **Primary dataset:** IBM Telco Customer Churn — 7,043 customers, 21 features  
