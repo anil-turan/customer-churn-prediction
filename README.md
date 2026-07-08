@@ -25,6 +25,7 @@ customer-churn-prediction/
 │   ├── features/pipeline.py     # canonical feature engineering (used by notebooks + API)
 │   ├── models/train.py          # pipeline builder + MLflow logging
 │   ├── evaluation/metrics.py    # ROC/PR/SHAP plot helpers
+│   ├── monitoring/drift.py      # PSI/KS drift detection (from scratch)
 │   └── serving/app.py           # FastAPI prediction endpoint
 ├── notebooks/
 │   ├── 01_eda.ipynb             # exploratory data analysis
@@ -32,9 +33,11 @@ customer-churn-prediction/
 │   ├── 03_model_training.ipynb  # CV, SHAP, calibration, MLflow, model export
 │   ├── 04_cost_sensitive.ipynb  # business cost matrix, threshold optimisation
 │   ├── 05_optuna_tuning.ipynb   # Bayesian HPO with Optuna TPE (50 trials, AUC-PR +5.1%)
-│   └── 06_generalization.ipynb  # same pipeline on E-Commerce dataset (AUC-PR 0.996)
+│   ├── 06_generalization.ipynb  # same pipeline on E-Commerce dataset (AUC-PR 0.996)
+│   └── 07_drift_monitoring.ipynb # PSI/KS drift on a simulated production batch
 ├── tests/
-│   └── test_pipeline.py         # data-leakage test + dummy baseline test
+│   ├── test_pipeline.py         # data-leakage test + dummy baseline test
+│   └── test_drift.py            # PSI/KS correctness (10 tests)
 ├── data/
 │   ├── raw/                     # original CSV (not committed)
 │   └── processed/               # train/test splits (not committed)
@@ -104,6 +107,25 @@ A sensitivity analysis shows the optimal threshold ranges from 0.46 (low cost ra
 
 ---
 
+### Model Monitoring — PSI/KS Drift Detection
+
+A validated model's performance guarantee has a shelf life: population, pricing, and contract mix all shift after deployment. `src/monitoring/drift.py` implements Population Stability Index (PSI) and the Kolmogorov-Smirnov (KS) statistic from scratch, with standard PSI alarm bands (<0.10 stable, 0.10-0.25 moderate, >0.25 significant).
+
+Notebook 07 simulates a 6-months-post-deployment production batch (price hike, a new-customer acquisition wave, resampling toward higher-churn payment/contract segments) against an untouched control batch:
+
+| Feature | Type | PSI (drifted) | PSI (control) | Drift level (drifted) |
+|---|---|---|---|---|
+| `tenure` | numeric | 1.914 | 0.007 | significant |
+| `MonthlyCharges` | numeric | 1.309 | 0.012 | significant |
+| `charge_per_service` | numeric | 1.081 | 0.010 | significant |
+| `PaymentMethod` | categorical | 0.320 | 0.000 | significant |
+| `Contract` | categorical | 0.217 | 0.000 | moderate |
+| `InternetService`, `total_services`, `TotalCharges`, `Dependents`, `gender` | — | ≤ 0.089 | ≤ 0.001 | stable |
+
+**Score drift** (the metric that actually drives a retraining decision): **PSI = 0.612** (significant) on the drifted batch vs **PSI = 0.012** (stable) on the control batch — the monitor stays quiet when nothing moved and fires clearly when it did.
+
+---
+
 ### Top SHAP Features
 
 | Rank | Feature | Direction |
@@ -148,6 +170,7 @@ notebooks/01_eda.ipynb
 notebooks/02_feature_engineering.ipynb
 notebooks/03_model_training.ipynb
 notebooks/04_cost_sensitive.ipynb
+notebooks/07_drift_monitoring.ipynb
 ```
 
 **4. Run tests**
@@ -233,3 +256,4 @@ Interactive API docs available at `http://localhost:8000/docs` after starting th
 - **Explainability:** SHAP `TreeExplainer` provides both global feature importance and per-customer waterfall explanations
 - **Experiment tracking:** all runs logged to MLflow (metrics, params, model artifacts, figures)
 - **Code quality:** `ruff` + `black` linting enforced via `pyproject.toml`; `pytest` with coverage via `pytest-cov`
+- **Drift monitoring:** PSI (quantile-binned for numeric, proportion-based for categorical) and KS implemented from scratch in `src/monitoring/drift.py`, verified against `scipy.stats.ks_2samp` to 1e-9
